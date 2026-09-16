@@ -1,0 +1,1062 @@
+RENCANA IMPLEMENTASI OLAH FOTO
+Evaluasi Data Foto Isolator Lombok 2026
+============================================================
+
+1. TUJUAN
+------------------------------------------------------------
+Membangun alur pengolahan dan analisis foto inspeksi isolator yang terstruktur, dapat diaudit, dan dapat digunakan untuk evaluasi mutu foto serta analisis hubungan antar gambar.
+
+Implementasi dibagi menjadi tiga lapis analisis:
+
+- LAPIS 1: Keputusan kelayakan foto untuk menilai kondisi isolator.
+- LAPIS 2: Pencatatan ciri atau karakteristik foto tanpa mengubah keputusan Lapis 1.
+- LAPIS 3: Analisis hubungan antar gambar dan pembentukan cluster duplikasi/kemiripan.
+
+Hasil akhir harus tersedia dalam:
+1. File Excel yang dapat diunduh.
+2. Dashboard berformat HTML.
+3. Tabel hubungan antar gambar dan cluster duplikasi untuk Lapis 3.
+
+
+2. RUANG LINGKUP DATA
+------------------------------------------------------------
+Sumber foto berasal dari tiga folder:
+
+1. E:\Evaluasi Data Foto Isolator Lombok 2026_ocr_result\ULTG LOMBOK BARAT
+2. E:\Evaluasi Data Foto Isolator Lombok 2026_ocr_result\ULTG LOMBOK TIMUR
+3. E:\Evaluasi Data Foto Isolator Lombok 2026_ocr_result\ULTG SUMBAWA
+
+Perkiraan jumlah foto keseluruhan berdasarkan rencana awal:
+26.659 foto.
+
+Seluruh foto harus diproses dengan identitas sumber yang tetap dapat ditelusuri minimal melalui:
+- nama file,
+- path file,
+- folder/ULTG asal,
+- tanggal/waktu apabila tersedia,
+- latitude dan longitude apabila tersedia,
+- metadata OCR atau metadata inspeksi yang tersedia.
+
+
+3. GAMBARAN ALUR UTAMA
+------------------------------------------------------------
+INPUT
+  |
+  v
+Inventarisasi dan validasi file
+  |
+  v
+LAPIS 1 - Keputusan kelayakan foto
+  |
+  v
+LAPIS 2 - Ciri/karakteristik foto
+  |
+  v
+LAPIS 3 - Hubungan antar gambar dan cluster duplikasi
+  |
+  v
+Konsolidasi hasil
+  |
+  +--> Excel
+  |
+  +--> Dashboard HTML
+  |
+  +--> Tabel pair relationship
+  |
+  +--> Tabel cluster duplikasi
+
+
+============================================================
+BAGIAN A - INPUT
+============================================================
+
+4. INPUT DATA
+------------------------------------------------------------
+
+4.1. Input Utama
+- File gambar dari tiga folder ULTG.
+- Nama file gambar.
+- Full path file.
+- ULTG/folder sumber.
+- Metadata file apabila tersedia.
+- Hasil OCR apabila tersedia.
+- Tanggal dan waktu pengambilan apabila tersedia.
+- Latitude dan longitude apabila tersedia.
+- Informasi Asset pada overlay foto apabila tersedia.
+
+4.2. Metadata Minimum per Foto
+Setiap foto harus mempunyai record master dengan field minimum:
+
+- photo_id
+- nama_file
+- file_path
+- ultg
+- tanggal
+- waktu
+- latitude
+- longitude
+- asset_text
+- file_size
+- image_width
+- image_height
+- file_hash
+- status_file
+
+photo_id harus unik dan stabil agar seluruh hasil Lapis 1, Lapis 2, dan Lapis 3 dapat direlasikan kembali ke file sumber.
+
+4.3. Validasi Input
+Sebelum analisis dimulai, lakukan pemeriksaan:
+
+- file dapat dibuka,
+- format gambar didukung,
+- file tidak rusak total,
+- metadata dapat dibaca bila tersedia,
+- nama file tidak kosong,
+- photo_id unik,
+- path file valid,
+- koordinat memiliki format valid apabila tersedia.
+
+File yang tidak dapat dibaca tetap dicatat dalam master dataset dan tidak boleh hilang dari hasil akhir.
+
+
+============================================================
+BAGIAN B - PROSES
+============================================================
+
+5. PROSES TAHAP AWAL - INVENTARISASI DAN NORMALISASI
+------------------------------------------------------------
+
+Tujuan:
+Membentuk satu master dataset sebagai sumber seluruh proses.
+
+Proses:
+1. Scan seluruh file pada tiga folder sumber.
+2. Membuat photo_id unik.
+3. Membaca metadata dasar file.
+4. Membaca tanggal/waktu dan koordinat jika tersedia.
+5. Menormalisasi nama ULTG dan path.
+6. Menghitung file hash untuk kebutuhan integritas dan deteksi file identik.
+7. Menandai file yang gagal dibuka.
+8. Menyimpan seluruh metadata ke master dataset.
+
+Output tahap awal:
+- master_photo
+- daftar file gagal dibaca
+- statistik jumlah file per ULTG
+- statistik kelengkapan metadata
+
+
+============================================================
+6. LAPIS 1 - KEPUTUSAN KELAYAKAN FOTO
+============================================================
+
+6.1. Tujuan
+Menjawab satu pertanyaan utama untuk setiap foto:
+
+"Bisakah kondisi isolator yang diminta form dinilai dari foto ini?"
+
+Jika dapat dinilai, pilih S = SESUAI.
+Jika tidak dapat dinilai, pilih satu penyebab utama.
+
+Lapis 1 bersifat SINGLE-LABEL:
+setiap foto hanya boleh memiliki satu keputusan akhir.
+
+6.2. Aturan Pemilihan Penyebab Utama
+Jika beberapa masalah muncul bersamaan:
+
+1. Bayangkan satu masalah dihilangkan.
+2. Jika setelah masalah tersebut dihilangkan foto menjadi dapat dinilai, masalah tersebut adalah penyebab utama.
+3. Jika beberapa masalah tetap sama-sama menggugurkan foto, gunakan nilai prioritas.
+4. Nilai prioritas terkecil menjadi keputusan utama.
+
+6.3. Definisi Objek
+- Piringan isolator: satu keping isolator berbentuk bulat.
+- Isolator renteng: satu rangkaian piringan isolator yang telah digandeng dan menggantung dari cross-arm menuju konduktor.
+- Satu tower dapat memiliki beberapa renteng: R, S, dan T pada wing kiri dan wing kanan.
+
+6.4. Kode Keputusan Lapis 1
+
+S - SESUAI
+Prioritas: tidak berlaku
+Arti:
+Isolator yang diminta form terlihat jelas dan menjadi objek utama foto. Piringan dapat dihitung satu per satu sehingga kondisi permukaan seperti kotor, retak, pecah, atau hilang dapat dinilai.
+Cara memutuskan:
+Tanyakan apakah foto ini saja sudah cukup untuk menilai kondisi piringan. Jika cukup, klasifikasikan SESUAI. Keberadaan tower atau komponen lain di frame tidak otomatis menjadi masalah.
+Perbaikan: Tidak ada.
+
+J - TERLALU_JAUH
+Prioritas: 5
+Arti:
+Isolator ada di foto tetapi terlalu kecil sehingga piringan tidak dapat dihitung atau dinilai kondisinya.
+Indikasi:
+- satu tower utuh mendominasi frame,
+- isolator hanya terlihat seperti garis tipis.
+Cara memutuskan:
+- < 10% tinggi foto: hampir pasti terlalu jauh.
+- > 20% tinggi foto: biasanya sudah cukup.
+- 10% sampai 20%: putuskan berdasarkan apakah piringan dapat dihitung satu per satu.
+Perbaikan lapangan:
+- mendekat,
+- memperbesar,
+- mengambil foto per renteng atau per cross-arm,
+- menghindari satu tower utuh jika detail piringan menjadi tidak terbaca.
+
+O - SALAH_OBJEK
+Prioritas: 1
+Arti:
+Kamera diarahkan ke komponen lain dan bukan isolator.
+Contoh:
+- clevis,
+- turnbuckle,
+- per,
+- arcing horn,
+- rangka baja tower.
+Cara memutuskan:
+Cocokkan isi foto dengan teks Asset pada overlay. Jika masih ada isolator renteng yang terbaca di dalam frame, jangan gunakan O. Gunakan S atau J sesuai tingkat keterbacaannya.
+Perbaikan lapangan:
+Arahkan kamera ke komponen yang diminta form.
+
+B - BLUR
+Prioritas: 2
+Arti:
+Foto tidak fokus atau goyang hingga permukaan piringan tidak dapat dinilai.
+Cara membedakan:
+- Blur: tepi piringan lembut atau berbayang.
+- Berkas rusak: pola blok/kotak atau kerusakan digital berulang.
+Perbaikan lapangan:
+- stabilkan kamera,
+- tunggu fokus mengunci,
+- baru ambil foto.
+
+P - OBJEK_UTAMA_TERPOTONG
+Prioritas: 6
+Arti:
+Renteng isolator yang sedang dinilai terpotong oleh tepi frame sehingga sebagian badan renteng tidak terekam.
+Catatan:
+Isolator lain yang hanya kebetulan masuk frame lalu terpotong tidak dihitung sebagai P.
+Cara memutuskan:
+Tanyakan apakah yang terpotong adalah isolator utama yang sedang difoto atau hanya isolator lain di tepi frame.
+Perbaikan lapangan:
+- mundur sedikit,
+- ubah sudut,
+- pastikan satu renteng utama masuk utuh.
+
+K - SILAU
+Prioritas: 3
+Arti:
+Detail piringan hilang karena kondisi cahaya.
+Contoh:
+- matahari masuk frame,
+- backlight,
+- lens flare,
+- terlalu terang,
+- terlalu gelap.
+Cara memutuskan:
+Bayangkan gangguan cahaya hilang. Jika piringan kemudian dapat terbaca, penyebab utama adalah pencahayaan. Jika tetap tidak terbaca karena terlalu kecil, gunakan TERLALU_JAUH.
+Perbaikan lapangan:
+- berdiri membelakangi matahari,
+- hindari memotret dengan matahari rendah tepat di belakang tower.
+
+H - TERHALANG
+Prioritas: 4
+Arti:
+Badan renteng isolator utama tertutup objek lain.
+Contoh:
+- ranting,
+- daun,
+- kabel,
+- bagian struktur.
+Cara memutuskan:
+Halangan harus menutupi badan renteng yang dinilai, bukan hanya berada di tepi frame.
+Catatan:
+Halangan berupa pohon dapat merupakan temuan ROW yang valid dan tidak selalu berarti kesalahan petugas. Foto kategori ini perlu dapat direview secara terpisah.
+Perbaikan lapangan:
+Geser posisi pengambilan beberapa langkah bila memungkinkan.
+
+D - BERKAS_RUSAK
+Prioritas: 0
+Arti:
+File foto mengalami kerusakan data.
+Contoh:
+- pita statis,
+- blok noise berwarna,
+- sebagian frame hilang.
+Cara membedakan:
+Kerusakan digital biasanya berupa pola kotak/blok, berulang, dan tidak menyerupai blur optik.
+Perbaikan:
+- periksa kamera,
+- periksa aplikasi,
+- periksa jalur upload,
+- ambil ulang foto.
+
+L - LAINNYA
+Prioritas: 7
+Arti:
+Masalah tidak masuk dalam kategori yang tersedia.
+Aturan:
+Kolom catatan wajib diisi. Jika pola yang sama berulang dalam jumlah signifikan, lakukan evaluasi apakah perlu dibuat kode baru.
+
+6.5. Output Lapis 1
+Field minimum:
+- photo_id
+- keputusan_lapis1
+- kode_lapis1
+- prioritas_lapis1
+- alasan_keputusan
+- catatan_lapis1
+- confidence_lapis1
+- perlu_review_manual
+
+Nilai kode_lapis1:
+S, J, O, B, P, K, H, D, L
+
+
+============================================================
+7. LAPIS 2 - CIRI FOTO
+============================================================
+
+7.1. Tujuan
+Menggambarkan karakteristik foto tanpa mengubah keputusan Lapis 1.
+
+Lapis 2 bersifat MULTI-ATTRIBUTE:
+satu foto dapat mempunyai banyak ciri sekaligus.
+
+Tujuan utama:
+- menjaga kode keputusan Lapis 1 tetap sederhana,
+- menjaga KPI tetap stabil,
+- menyediakan data eksplorasi penyebab,
+- mendukung analisis pola,
+- menyediakan bahan evaluasi threshold,
+- menyediakan kandidat few-shot/review.
+
+7.2. Prinsip Pengisian
+Terdapat dua cakupan pengisian:
+- SEMUA FOTO
+- SAMPEL
+
+Untuk ciri yang masuk kategori SAMPEL, target awal sekitar 1.500 foto terpilih.
+
+Catatan implementasi:
+Dokumen sumber menyebut adanya pembagian "SEMUA FOTO" dan "SAMPEL", tetapi mapping setiap ciri ke salah satu kategori tersebut belum tercantum secara eksplisit pada daftar ciri. Mapping tersebut harus dibuat sebagai konfigurasi sebelum eksekusi penuh.
+
+Jangan membuat ulang ciri yang sebenarnya dapat dihitung dari master data seperti:
+- jam,
+- hari,
+- nama petugas,
+- ULTG.
+
+7.3. Ciri Foto
+
+ragu2
+Pilihan: ya | tidak
+NA: tidak berlaku
+Arti:
+Keputusan Lapis 1 berada pada batas dan penilai sendiri ragu.
+Kasus umum:
+SESUAI vs TERLALU_JAUH.
+Kegunaan:
+- menyajikan Match Rate dalam rentang,
+- mengidentifikasi kasus ambigu,
+- bahan few-shot yang bernilai tinggi.
+
+cakupan_foto
+Pilihan:
+closeup_1_renteng | closeup_beberapa_renteng | setengah_tower | tower_penuh | tower_dan_lanskap
+Arti:
+Menggambarkan luas cakupan objek dalam frame, dari paling dekat ke paling jauh.
+Kegunaan:
+Mengevaluasi konsistensi threshold TERLALU_JAUH.
+
+jumlah_renteng_terbaca
+Pilihan: 0 | 1 | 2-3 | 4+
+Arti:
+Jumlah renteng yang piringannya benar-benar dapat terbaca, bukan sekadar terlihat.
+Kegunaan:
+Mengecek kelengkapan section R, S, T di wing kiri dan kanan.
+
+arah_isolator
+Pilihan: vertikal | horizontal | miring | dari_bawah
+NA: jika tidak ada renteng yang menjadi objek utama.
+Arti:
+Orientasi renteng utama di dalam frame.
+Kegunaan:
+Menilai apakah tipe struktur atau arah pengambilan tertentu lebih sulit difoto.
+
+bahan_isolator
+Pilihan: porselen_coklat | porselen_putih | kaca | tidak_jelas
+NA: gunakan tidak_jelas apabila material tidak dapat dipastikan.
+Arti:
+Material piringan isolator.
+Kegunaan:
+Data aset tambahan dan bahan analisis pola kerusakan.
+
+cahaya
+Pilihan: normal | backlit | flare | terlalu_terang | terlalu_gelap | berkabut
+Arti:
+Kondisi pencahayaan dominan.
+Kegunaan:
+Memecah kategori SILAU menjadi penyebab yang lebih spesifik.
+
+ketajaman
+Pilihan: tajam | sedikit_blur | blur
+Arti:
+Ketajaman objek utama.
+Catatan:
+sedikit_blur masih dapat masuk SESUAI apabila jumlah dan kondisi piringan tetap terbaca. blur penuh dapat menggugurkan foto.
+
+noise
+Pilihan: bersih | sedikit_noise | banyak_noise
+Arti:
+Bintik/noise pada gambar.
+Perbedaan:
+- noise: tepi objek masih tegas,
+- blur: tepi objek menjadi lembut.
+Foto dengan noise tinggi masih dapat SESUAI apabila piringan tetap dapat dibedakan.
+
+halangan
+Pilihan: tidak_ada | pohon | kabel | struktur
+Arti:
+Jenis penghalang objek.
+Kegunaan:
+Pohon dipisahkan karena dapat menjadi temuan ROW.
+
+isi_frame_terbanyak
+Pilihan: piringan_isolator | hardware | rangka_tower | langit_lanskap | seimbang
+Arti:
+Objek yang paling banyak mengisi frame.
+Kegunaan:
+Menjadi pembanding keputusan SALAH_OBJEK.
+
+bagian_renteng_terlihat
+Pilihan: utuh | ujung_atas | ujung_bawah | tengah
+NA: jika tidak ada renteng yang menjadi objek utama.
+Arti:
+Bagian renteng utama yang masuk dalam frame.
+Definisi:
+- utuh: ujung atas hingga ujung bawah terlihat,
+- ujung_atas: hanya bagian dekat cross-arm,
+- ujung_bawah: hanya bagian dekat konduktor,
+- tengah: kedua ujung terpotong.
+Kegunaan:
+Mengidentifikasi pola pemotongan objek utama dan mendukung evaluasi kategori P.
+
+7.4. Output Lapis 2
+Field minimum:
+- photo_id
+- ragu2
+- cakupan_foto
+- jumlah_renteng_terbaca
+- arah_isolator
+- bahan_isolator
+- cahaya
+- ketajaman
+- noise
+- halangan
+- isi_frame_terbanyak
+- bagian_renteng_terlihat
+- scope_pengisian
+- catatan_lapis2
+
+
+============================================================
+8. LAPIS 3 - ANALISIS HUBUNGAN ANTAR GAMBAR DAN CLUSTER
+============================================================
+
+8.1. Tujuan
+Mengidentifikasi hubungan antar gambar secara lebih dalam untuk menjawab:
+- gambar ini berhubungan dengan gambar mana,
+- apakah dua gambar benar-benar duplikat,
+- apakah keduanya berasal dari pengambilan yang sama,
+- apakah keduanya menunjukkan objek fisik yang sama,
+- gambar mana saja yang membentuk satu cluster,
+- gambar mana yang menjadi canonical image,
+- seberapa kuat bukti hubungan tersebut.
+
+Lapis 3 tidak hanya menghasilkan flag duplikasi Ya/Tidak.
+
+8.2. Catatan Konsistensi Desain
+Lapis 1 dan Lapis 2 pada dokumen ini masing-masing adalah:
+- Lapis 1: keputusan kelayakan,
+- Lapis 2: ciri foto.
+
+Karena itu pemeriksaan exact duplicate dan near duplicate untuk kebutuhan Lapis 3 diperlakukan sebagai SUB-PROSES AWAL di dalam pipeline Lapis 3, bukan sebagai fungsi utama Lapis 1 dan Lapis 2.
+
+8.3. Input Lapis 3
+- master_photo,
+- hasil Lapis 1,
+- hasil Lapis 2,
+- file gambar asli,
+- file hash,
+- perceptual hash,
+- nama file,
+- tanggal/waktu jika tersedia,
+- latitude/longitude jika tersedia,
+- metadata kualitas foto.
+
+8.4. Sub-Proses 3.0 - Exact dan Near Duplicate Precheck
+A. Exact Duplicate
+Gunakan SHA-256 atau file hash setara.
+Tujuan: mendeteksi file yang benar-benar identik.
+
+B. Near Duplicate
+Gunakan pHash dan dHash bila diperlukan.
+Tujuan: mendeteksi gambar yang secara visual hampir sama walaupun ukuran, kompresi, brightness, atau crop ringan berubah.
+
+Output:
+- exact_duplicate_flag
+- exact_duplicate_reference
+- phash
+- phash_distance
+- near_duplicate_flag
+
+8.5. Sub-Proses 3.1 - Generate Image Embedding
+Setiap gambar dikonversi menjadi vector embedding.
+Model rekomendasi: DINOv2.
+Output:
+- image_embedding
+- embedding_dimension
+- embedding_model
+Embedding harus di-cache agar tidak dihitung ulang selama file tidak berubah.
+
+8.6. Sub-Proses 3.2 - Candidate Retrieval
+Tujuan:
+Menghindari perbandingan semua gambar terhadap semua gambar.
+Gunakan:
+- Approximate Nearest Neighbor,
+- HNSW / hnswlib.
+Parameter awal:
+Top-K = 10 sampai 30 kandidat terdekat per gambar.
+Parameter harus configurable.
+Output:
+- image_a
+- image_b
+- embedding_similarity
+
+8.7. Sub-Proses 3.3 - Embedding Similarity
+Gunakan cosine similarity.
+Interpretasi awal:
+- >= 0.95 : hubungan visual sangat kuat
+- 0.90 sampai < 0.95 : kuat
+- 0.80 sampai < 0.90 : sedang
+- < 0.80 : lemah
+Nilai ini bukan keputusan tunggal dan harus dikombinasikan dengan evidence lain.
+
+8.8. Sub-Proses 3.4 - Perceptual Hash Verification
+Gunakan hasil pHash/dHash.
+Interpretasi awal pHash:
+- distance 0 : identik secara perceptual
+- 1 sampai 4 : sangat mirip
+- 5 sampai 8 : kemungkinan near duplicate
+- > 8 : membutuhkan evidence tambahan
+
+8.9. Sub-Proses 3.5 - Local Feature Matching
+Tujuan:
+Membedakan objek fisik yang sama dari objek yang hanya sejenis.
+Metode default: ORB.
+Metode advanced: SIFT.
+Tahapan:
+1. Deteksi keypoint.
+2. Hitung descriptor.
+3. Feature matching.
+4. Filter good matches.
+5. Validasi geometri dengan RANSAC/homography.
+Output:
+- keypoints_image_a
+- keypoints_image_b
+- total_matches
+- good_matches
+- geometrically_consistent_matches
+- feature_match_score
+
+8.10. Sub-Proses 3.6 - Kesamaan Lokasi
+Jika latitude dan longitude tersedia, hitung jarak dengan Haversine Distance.
+Output:
+- gps_distance_meter
+Interpretasi awal:
+- <= 5 meter : sangat dekat
+- > 5 sampai 20 meter : dekat
+- > 20 sampai 100 meter : perlu evidence tambahan
+- > 100 meter : hubungan lokasi lemah
+GPS hanya menjadi contextual evidence karena koordinat perangkat dapat memiliki deviasi.
+
+8.11. Sub-Proses 3.7 - Kesamaan Waktu
+Jika timestamp tersedia, hitung selisih waktu.
+Output:
+- time_difference_second
+- time_difference_minute
+Interpretasi awal:
+- <= 60 detik : sangat dekat
+- <= 5 menit : dekat
+- <= 30 menit : masih mungkin satu aktivitas inspeksi
+- > 30 menit : membutuhkan evidence tambahan
+
+8.12. Sub-Proses 3.8 - Relationship Score
+Komponen:
+- embedding_similarity
+- perceptual_hash_similarity
+- feature_match_score
+- gps_proximity_score
+- time_proximity_score
+
+Formula awal:
+relationship_score =
+0.35 * embedding_score +
+0.25 * feature_match_score +
+0.20 * phash_score +
+0.10 * gps_score +
+0.10 * time_score
+
+Seluruh bobot harus configurable dan tidak boleh menjadi hardcode permanen.
+
+8.13. Sub-Proses 3.9 - Klasifikasi Hubungan
+EXACT_DUPLICATE: file/gambar benar-benar identik.
+NEAR_DUPLICATE: gambar substantif sama tetapi mengalami resize, crop, kompresi, atau perubahan ringan.
+SAME_CAPTURE: foto berbeda tetapi kemungkinan berasal dari satu rangkaian pengambilan dengan scene, posisi, dan waktu yang sangat dekat.
+SAME_OBJECT: foto menunjukkan objek fisik yang sama dengan sudut, framing, jarak, atau waktu berbeda.
+RELATED_ONLY: foto memiliki kemiripan visual tetapi belum cukup bukti untuk menyatakan objek/pengambilan yang sama.
+UNRELATED: tidak terdapat hubungan yang cukup kuat.
+
+8.14. Sub-Proses 3.10 - Image Relationship Graph
+Setiap gambar = node.
+Hubungan antar pasangan gambar = edge.
+Edge menyimpan:
+- image_a
+- image_b
+- relationship_score
+- relationship_type
+- embedding_similarity
+- feature_match_score
+- phash_distance
+- gps_distance_meter
+- time_difference_second
+
+8.15. Sub-Proses 3.11 - Pembentukan Cluster
+Metode awal: Connected Components.
+Untuk kebutuhan lanjutan:
+- Community Detection,
+- HDBSCAN,
+- graph-based clustering.
+
+8.16. Sub-Proses 3.12 - Pencegahan Similarity Chaining
+Connected Components tidak boleh langsung dianggap sebagai cluster final.
+Contoh masalah:
+A mirip B, B mirip C, C mirip D, tetapi A tidak cukup mirip dengan D.
+Validasi cluster minimal menggunakan:
+- average internal similarity,
+- minimum internal similarity,
+- cluster diameter,
+- jumlah hubungan kuat.
+Jika hubungan internal rendah, cluster harus ditandai atau dipecah.
+
+8.17. Sub-Proses 3.13 - Canonical Image
+Setiap cluster memiliki satu canonical image.
+Prioritas pemilihan:
+1. objek sesuai,
+2. tidak blur,
+3. tidak partial object,
+4. angle tidak terlalu jauh,
+5. tidak tertutup,
+6. resolusi lebih tinggi,
+7. objek terlihat lebih lengkap,
+8. quality score tertinggi.
+Output:
+- canonical_image
+- canonical_image_score
+
+8.18. Sub-Proses 3.14 - Duplicate Confidence
+Interpretasi awal:
+- >= 0.95 : Very High
+- >= 0.85 dan < 0.95 : High
+- >= 0.70 dan < 0.85 : Medium
+- < 0.70 : Low
+
+8.19. Sub-Proses 3.15 - Explainable Evidence
+Setiap keputusan harus dapat dijelaskan.
+Contoh:
+embedding_high; feature_match_high; gps_same; time_close
+atau:
+phash_low_distance; same_scene; gps_unknown
+Sistem tidak boleh hanya menghasilkan duplikasi = Ya/Tidak tanpa evidence pendukung.
+
+8.20. Aturan Manual Review
+Kirim ke manual review jika:
+- confidence = Medium,
+- embedding tinggi tetapi feature match rendah,
+- GPS jauh tetapi visual similarity sangat tinggi,
+- terjadi similarity chaining,
+- minimum similarity dalam cluster terlalu rendah,
+- SAME_OBJECT sulit dibedakan dari RELATED_ONLY,
+- evidence saling bertentangan.
+
+
+============================================================
+BAGIAN C - OUTPUT
+============================================================
+
+9. OUTPUT DATA UTAMA
+------------------------------------------------------------
+
+9.1. Master Hasil per Foto
+Satu baris = satu foto.
+
+IDENTITAS
+- photo_id
+- ultg
+- nama_file
+- file_path
+- tanggal
+- waktu
+- latitude
+- longitude
+
+LAPIS 1
+- keputusan_lapis1
+- kode_lapis1
+- prioritas_lapis1
+- alasan_keputusan
+- catatan_lapis1
+- confidence_lapis1
+- perlu_review_manual
+
+LAPIS 2
+- ragu2
+- cakupan_foto
+- jumlah_renteng_terbaca
+- arah_isolator
+- bahan_isolator
+- cahaya
+- ketajaman
+- noise
+- halangan
+- isi_frame_terbanyak
+- bagian_renteng_terlihat
+
+LAPIS 3
+- exact_duplicate_flag
+- near_duplicate_flag
+- duplicate_group_id
+- duplicate_relation
+- duplicate_confidence
+- duplicate_reference_image
+- canonical_image
+- related_images
+- embedding_similarity
+- phash_distance
+- feature_match_score
+- gps_distance_meter
+- time_difference_second
+- relationship_score
+- duplicate_evidence
+
+9.2. Tabel Pair Relationship
+Satu baris = satu pasangan gambar.
+Field minimum:
+- image_a
+- image_b
+- embedding_similarity
+- phash_distance
+- feature_match_score
+- gps_distance_meter
+- time_difference_second
+- relationship_score
+- relationship_type
+- duplicate_confidence
+- duplicate_evidence
+
+9.3. Tabel Cluster
+Satu baris = satu cluster.
+Field:
+- duplicate_group_id
+- canonical_image
+- jumlah_gambar
+- member_images
+- average_similarity
+- minimum_similarity
+- cluster_confidence
+- cluster_status
+
+Nilai cluster_status:
+- VALID
+- NEED_REVIEW
+- SPLIT_RECOMMENDED
+
+
+10. OUTPUT FILE EXCEL
+------------------------------------------------------------
+File Excel harus dapat diunduh dan minimal terdiri dari sheet:
+1. MASTER_FOTO
+2. HASIL_LAPIS_1
+3. HASIL_LAPIS_2
+4. HASIL_LAPIS_3
+5. PAIR_RELATIONSHIP
+6. DUPLICATE_CLUSTER
+7. MANUAL_REVIEW
+8. SUMMARY
+
+Sheet SUMMARY minimal berisi:
+- total foto,
+- total foto per ULTG,
+- distribusi kode Lapis 1,
+- jumlah dan rate SESUAI,
+- jumlah foto ragu2,
+- distribusi ciri utama Lapis 2,
+- jumlah exact duplicate,
+- jumlah near duplicate,
+- jumlah SAME_CAPTURE,
+- jumlah SAME_OBJECT,
+- jumlah cluster,
+- jumlah cluster NEED_REVIEW,
+- jumlah file rusak/tidak terbaca.
+
+
+11. OUTPUT DASHBOARD HTML
+------------------------------------------------------------
+Dashboard harus dapat dibuka sebagai HTML dan minimal menyediakan:
+
+A. Executive Summary
+- total foto,
+- foto per ULTG,
+- distribusi keputusan Lapis 1,
+- rate SESUAI,
+- jumlah foto perlu review,
+- jumlah cluster duplikasi.
+
+B. Analisis Lapis 1
+- distribusi S, J, O, B, P, K, H, D, L,
+- proporsi per ULTG,
+- tren berdasarkan tanggal bila tersedia,
+- daftar foto kategori tertentu.
+
+C. Analisis Lapis 2
+- distribusi ciri,
+- ragu2,
+- cakupan foto,
+- ketajaman,
+- cahaya,
+- halangan,
+- bahan isolator,
+- hubungan ciri dengan keputusan Lapis 1.
+
+D. Analisis Lapis 3
+- daftar duplicate cluster,
+- jumlah gambar per cluster,
+- canonical image,
+- thumbnail anggota cluster,
+- relationship type,
+- duplicate confidence,
+- similarity score,
+- GPS distance,
+- time difference,
+- evidence,
+- status cluster.
+
+E. Manual Review
+- filter NEED_REVIEW,
+- perbandingan gambar berdampingan,
+- evidence hubungan,
+- informasi metadata,
+- keputusan reviewer jika fitur review disediakan.
+
+
+============================================================
+BAGIAN D - KEBUTUHAN TEKNIS
+============================================================
+
+12. PERFORMANCE DAN SCALABILITY
+------------------------------------------------------------
+Jumlah gambar dapat mencapai puluhan ribu sehingga proses Lapis 3 tidak boleh menggunakan brute-force seluruh pasangan gambar.
+Hindari kompleksitas O(N^2) untuk candidate search.
+Gunakan:
+- image embedding cache,
+- Approximate Nearest Neighbor,
+- HNSW,
+- Top-K candidate retrieval,
+- batch processing.
+Embedding tidak dihitung ulang selama file tidak berubah.
+
+13. CACHE
+------------------------------------------------------------
+Cache minimum:
+- photo_id
+- image_hash
+- image_embedding
+- perceptual_hash
+- image_metadata
+- timestamp_proses
+Jika file berubah, cache file tersebut harus di-invalidasi dan dihitung ulang.
+
+14. KONFIGURASI
+------------------------------------------------------------
+Parameter berikut tidak boleh di-hardcode permanen:
+- threshold keputusan,
+- threshold embedding,
+- pHash distance threshold,
+- Top-K,
+- bobot relationship score,
+- GPS radius,
+- time threshold,
+- minimum feature match,
+- confidence threshold,
+- cluster validation threshold,
+- ukuran sampel Lapis 2.
+Gunakan file konfigurasi atau application settings.
+
+15. LIBRARY YANG DIREKOMENDASIKAN
+------------------------------------------------------------
+Pengolahan data:
+- pandas
+- numpy
+
+Pengolahan gambar:
+- Pillow
+- opencv-python-headless
+- ImageHash
+- scikit-image
+
+Image embedding:
+- torch
+- torchvision
+- transformers
+
+Similarity / machine learning:
+- scikit-learn
+- scipy
+
+Nearest neighbor:
+- hnswlib
+
+Graph / clustering:
+- networkx
+- hdbscan
+
+Excel:
+- openpyxl
+- XlsxWriter
+
+Dashboard:
+- Streamlit dan/atau Plotly
+- output HTML sesuai kebutuhan implementasi
+
+16. MODEL YANG DIREKOMENDASIKAN
+------------------------------------------------------------
+Image embedding: DINOv2
+Local feature matching default: ORB
+Advanced feature matching: SIFT
+
+
+============================================================
+BAGIAN E - URUTAN IMPLEMENTASI
+============================================================
+
+17. TAHAP IMPLEMENTASI
+------------------------------------------------------------
+TAHAP 1 - Data Ingestion
+Output: master_photo valid.
+
+TAHAP 2 - Lapis 1
+Output: satu keputusan final per foto.
+
+TAHAP 3 - Lapis 2
+Output: ciri foto sesuai cakupan SEMUA FOTO/SAMPEL.
+
+TAHAP 4 - Duplicate Precheck
+Output: exact duplicate dan near duplicate candidate.
+
+TAHAP 5 - Image Embedding dan Candidate Retrieval
+Output: Top-K pasangan kandidat.
+
+TAHAP 6 - Pair Verification
+Output: embedding, pHash, feature match, GPS, dan time evidence.
+
+TAHAP 7 - Relationship Classification
+Output: EXACT_DUPLICATE, NEAR_DUPLICATE, SAME_CAPTURE, SAME_OBJECT, RELATED_ONLY, atau UNRELATED.
+
+TAHAP 8 - Graph dan Cluster
+Output: duplicate_group_id dan relationship graph.
+
+TAHAP 9 - Cluster Validation
+Output: VALID, NEED_REVIEW, SPLIT_RECOMMENDED.
+
+TAHAP 10 - Canonical Image
+Output: satu canonical image per cluster.
+
+TAHAP 11 - Konsolidasi
+Output: master hasil, pair relationship, cluster, dan manual review.
+
+TAHAP 12 - Reporting
+Output: Excel dan dashboard HTML.
+
+
+============================================================
+BAGIAN F - KRITERIA KEBERHASILAN
+============================================================
+
+18. ACCEPTANCE CRITERIA
+------------------------------------------------------------
+Implementasi dianggap berhasil jika:
+1. Seluruh file dari tiga folder dapat diinventarisasi.
+2. Setiap foto memiliki photo_id unik.
+3. Setiap foto memiliki tepat satu keputusan Lapis 1.
+4. Keputusan Lapis 1 mengikuti prioritas yang ditentukan.
+5. Ciri Lapis 2 tersimpan secara terpisah dari keputusan Lapis 1.
+6. Nilai NA Lapis 2 digunakan sesuai aturan.
+7. Exact duplicate dapat terdeteksi.
+8. Near duplicate dapat terdeteksi.
+9. Lapis 3 menghasilkan hubungan antar gambar yang explainable.
+10. Setiap cluster memiliki duplicate_group_id.
+11. Cluster yang meragukan masuk NEED_REVIEW atau SPLIT_RECOMMENDED.
+12. Setiap cluster valid memiliki canonical image.
+13. Hasil dapat diekspor ke Excel.
+14. Dashboard HTML dapat dibuka dan digunakan untuk eksplorasi.
+15. Seluruh hasil dapat ditelusuri kembali ke file foto asli.
+
+
+============================================================
+19. RINGKASAN INPUT > PROSES > OUTPUT
+============================================================
+
+INPUT
+- 3 folder foto ULTG
+- file gambar
+- OCR/overlay
+- metadata
+- tanggal/waktu
+- latitude/longitude
+
+        |
+        v
+
+PROSES
+1. Inventarisasi dan validasi
+2. Lapis 1: keputusan kelayakan
+3. Lapis 2: ciri foto
+4. Exact/near duplicate precheck
+5. DINOv2 embedding
+6. HNSW Top-K retrieval
+7. ORB/SIFT verification
+8. GPS dan time proximity
+9. Relationship score
+10. Relationship classification
+11. Graph construction
+12. Cluster formation
+13. Similarity chaining validation
+14. Canonical image selection
+15. Manual review untuk kasus ambigu
+
+        |
+        v
+
+OUTPUT
+- Master hasil per foto
+- Hasil Lapis 1
+- Hasil Lapis 2
+- Hasil Lapis 3
+- Pair relationship
+- Duplicate cluster
+- Manual review queue
+- Excel yang dapat diunduh
+- Dashboard HTML
+
+============================================================
+END OF DOCUMENT
+============================================================

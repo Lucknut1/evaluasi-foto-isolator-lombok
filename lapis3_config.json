@@ -1,0 +1,64 @@
+{
+  "embedding": {
+    "model_name": "facebook/dinov2-small",
+    "batch_size": 32,
+    "image_size": 224,
+    "normalize": true
+  },
+  "retrieval": {
+    "top_k": 20,
+    "space": "cosine",
+    "ef_construction": 200,
+    "ef_search": 100,
+    "m": 16
+  },
+  "orb": {
+    "nfeatures": 1500,
+    "scale_factor": 1.2,
+    "nlevels": 8,
+    "ratio_test": 0.75,
+    "min_good_matches": 8,
+    "ransac_reproj_threshold": 5.0,
+    "min_inliers": 5,
+    "max_dimension": 1024,
+    "progress_interval": 5000
+  },
+  "relationship": {
+    "weights": {
+      "embedding": 0.35,
+      "feature": 0.25,
+      "phash": 0.20,
+      "gps": 0.10,
+      "time": 0.10
+    },
+    "edge_threshold": 0.70,
+    "strong_edge_threshold": 0.85,
+    "near_duplicate_embedding": 0.95,
+    "near_duplicate_phash_distance": 8,
+    "same_capture_score": 0.82,
+    "same_object_score": 0.72,
+    "related_score": 0.55,
+    "gps_same_meter": 5.0,
+    "gps_near_meter": 20.0,
+    "time_same_second": 60,
+    "time_near_second": 300,
+    "confidence": {
+      "very_high": 0.95,
+      "high": 0.85,
+      "medium": 0.70
+    }
+  },
+  "cluster_validation": {
+    "valid_average_similarity": 0.82,
+    "valid_minimum_similarity": 0.65,
+    "split_minimum_similarity": 0.50,
+    "max_diameter": 0.50,
+    "min_strong_edge_ratio": 0.25
+  },
+  "paths": {
+    "lapis1_csv": "outputs/lapis1_work/hasil_lapis1.csv",
+    "lapis2_csv": "outputs/lapis2_work/hasil_lapis2.csv",
+    "work_dir": "outputs/lapis3_work",
+    "output_dir": "outputs/lapis3_20260913"
+  }
+}
